@@ -1,8 +1,20 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Sockets;
 using System.Collections.Generic;
 class Server
 {
+    public enum ResultCode : byte
+    { 
+        Success,
+        Fail
+    }
+
+    public enum ChatProtocol : byte
+    {
+        SetNickName,
+        Message,
+        Notice
+    }
     static void Main()
     {
         TcpListener listener = new TcpListener(IPAddress.Any, 9000);
@@ -41,8 +53,7 @@ class Server
                     int recvLen;
 
                     recvLen = client.Receive(buf);
-
-
+                    
                     if (recvLen <= 0)
                     {
                         client.Close();
@@ -50,7 +61,20 @@ class Server
                         continue;
                     }
 
-                    client.Send(buf, 0, recvLen, SocketFlags.None);
+                    if ((ChatProtocol)buf[0] == ChatProtocol.SetNickName)
+                    {
+                        byte nickNameLen = buf[1];
+                        string nickName = System.Text.Encoding.UTF8.GetString(buf, 2, nickNameLen);
+                        Console.WriteLine(nickName + "님이 접속하였습니다.");
+
+                        buf = new byte[2];
+                        buf[0] = (byte)ChatProtocol.SetNickName;
+                        buf[1] = (byte)ResultCode.Success;
+
+                        client.Send(buf, 0, buf.Length, SocketFlags.None);
+                    }
+
+                    
 
                     client.Close();
                     clientSockets.RemoveAt(i);

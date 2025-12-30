@@ -1,25 +1,21 @@
-﻿using System;
-using System.IO;
 using System.Net.Sockets;
 using System.Text;
-using System.Text.Json.Serialization;
-
-class Client
+public class Client
 {
+    
     static void Main()
     {
         using var client = new TcpClient("127.0.0.1", 9000);
         using NetworkStream stream = client.GetStream();
 
         ChatManager chatManager= new ChatManager();
-
+        Console.Write("닉네임을 입력하세요: ");
         string nickname = Console.ReadLine() ?? "null";
 
-        chatManager.Send(stream, chatManager.MakePacket("SetNickname",nickname));
+        chatManager.RequestSetNickname(stream, nickname);
 
+        chatManager.SetNicknameOnResponse(stream);
         //받기 처리
-
-        Console.WriteLine("echo: " + Encoding.UTF8.GetString(recvBuf, 0, n));
     }
 }
 public class ChatManager
@@ -37,18 +33,16 @@ public class ChatManager
         m_Chat = new ChatMessage();
     }
 
-    public byte[] MakePacket(string protocol,params object[] objects)
+    public byte[] MakePacket(ChatProtocol _protocol, string _value)
     {
-        byte[] packet = new byte[1];
-        if (protocol == "SetNickname")
+        byte[] packet = Array.Empty<byte>();
+        if (_protocol == ChatProtocol.SetNickName)
         {
-            if (objects == null || objects.Length < 1)
-                return packet;
-            byte[] nicknameBytes = Encoding.UTF8.GetBytes(objects[0].ToString());
+            
+            byte[] nicknameBytes = Encoding.UTF8.GetBytes(_value);
             if (nicknameBytes.Length > 255)
-            {
-                return packet;
-            }
+               throw new Exception("닉네임의 최대 길이를 벗어났습니다.");
+            
             packet = new byte[2 + nicknameBytes.Length];
             packet[0] = (byte)ChatProtocol.SetNickName;
             packet[1] = (byte)nicknameBytes.Length;
@@ -57,13 +51,22 @@ public class ChatManager
 
         return packet;
     }
-    public void SetNicknameOnResponse(string _nickname)
+    public void RequestSetNickname(NetworkStream _stream,string _nickname)
     {
-        // 닉네임 설정 응답 처리
-        m_Chat.Nickname = _nickname;
+        Send(_stream,MakePacket(ChatProtocol.SetNickName, _nickname));
+    }
+    public void SetNicknameOnResponse(NetworkStream _stream)
+    {
+        byte[] buffer = new byte[2];
+        _stream.Read(buffer, 0, 0);
     }
     public void Send(NetworkStream _stream, byte[] _bytes)
     {
+        if(_bytes == null ||_bytes.Length == 0)
+        {
+            Console.WriteLine("보낼 데이터가 없습니다.");
+            return;
+        }
         _stream.Write(_bytes, 0, _bytes.Length);
     }
 }
