@@ -1,20 +1,8 @@
 using System.Net;
 using System.Net.Sockets;
-using System.Collections.Generic;
+using Network;
 class Server
 {
-    public enum ResultCode : byte
-    { 
-        Success,
-        Fail
-    }
-
-    public enum ChatProtocol : byte
-    {
-        SetNickName,
-        Message,
-        Notice
-    }
     static void Main()
     {
         TcpListener listener = new TcpListener(IPAddress.Any, 9000);
@@ -25,7 +13,7 @@ class Server
         List<Socket> clientSockets = new List<Socket>();
         List<Socket> readList = new List<Socket>();
 
-        byte[] buf = new byte[1024];
+        byte[] recvBuf = new byte[4096];
         while (true)
         {
             readList.Clear();
@@ -51,8 +39,8 @@ class Server
                 if (readList.Contains(client))
                 {
                     int recvLen;
-
-                    recvLen = client.Receive(buf);
+                    
+                    recvLen = client.Receive(recvBuf);
                     
                     if (recvLen <= 0)
                     {
@@ -60,24 +48,38 @@ class Server
                         clientSockets.RemoveAt(i);
                         continue;
                     }
+                    
 
-                    if ((ChatProtocol)buf[0] == ChatProtocol.SetNickName)
+                    if ((ChatProtocol)recvBuf[0] == ChatProtocol.SetNickname)
                     {
-                        byte nickNameLen = buf[1];
-                        string nickName = System.Text.Encoding.UTF8.GetString(buf, 2, nickNameLen);
-                        Console.WriteLine(nickName + "님이 접속하였습니다.");
+                        byte nicknameLen = recvBuf[1];
+                        string nickname = System.Text.Encoding.UTF8.GetString(recvBuf, 2, nicknameLen);
+                        Console.WriteLine(nickname + "님이 접속하였습니다.");
 
-                        buf = new byte[2];
-                        buf[0] = (byte)ChatProtocol.SetNickName;
-                        buf[1] = (byte)ResultCode.Success;
+                        byte[] sendBuf = new byte[2 + 1 + nicknameLen];
+                        sendBuf[0] = (byte)ChatProtocol.SetNickname;
+                        sendBuf[1] = (byte)ResultCode.Success;
+                        sendBuf[2] = nicknameLen;
+                        Array.Copy(recvBuf, 2, sendBuf, 3, nicknameLen);
 
-                        client.Send(buf, 0, buf.Length, SocketFlags.None);
+                        client.Send(sendBuf, 0, sendBuf.Length, SocketFlags.None);
+                    }
+                    if ((ChatProtocol)recvBuf[0] == ChatProtocol.Message)
+                    {
+                        byte nicknameLen = recvBuf[1];
+                        string nickname = System.Text.Encoding.UTF8.GetString(recvBuf, 2, nicknameLen);
+                        byte messageLen = recvBuf[2 + nicknameLen];
+                        string message = System.Text.Encoding.UTF8.GetString(recvBuf, 3 + nicknameLen, messageLen);
+                        Console.WriteLine($"{nickname} : {message}");
+
+                        byte[] sendBuf = new byte[2];
+                        sendBuf[0] = (byte)ChatProtocol.Message;
+                        sendBuf[1] = (byte)ResultCode.Success;
+
+                        client.Send(sendBuf, 0, sendBuf.Length, SocketFlags.None);
                     }
 
                     
-
-                    client.Close();
-                    clientSockets.RemoveAt(i);
                 }
             }
             
