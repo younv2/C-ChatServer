@@ -1,8 +1,17 @@
-﻿using System;
+using Network;
+using System;
 using System.Runtime.InteropServices;
 
 public class ByteConverter
 {
+    public static ushort GetMarshalTypeSize<T>(T _type)
+    {
+        return (ushort)Marshal.SizeOf(_type);
+    }
+    public static ushort GetMarshalTypeSize(Type _type)
+    {
+        return (ushort)Marshal.SizeOf(_type);
+    }
     public static byte[] StructureToBytes<T>(T str) where T : struct
     {
         // 1. 구조체가 마샬링되었을 때 차지할 실제 바이트 크기

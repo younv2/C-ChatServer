@@ -1,4 +1,4 @@
-﻿namespace Network
+namespace Network
 {
     public enum ResultCode : byte
     {

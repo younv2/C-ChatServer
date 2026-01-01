@@ -1,5 +1,5 @@
 <Solution>
   <Project Path="C#ChatServer/C#ChatServer.csproj" />
   <Project Path="Client/Client.csproj" />
-  <Project Path="Protocol/Network.csproj" Id="9b47ab72-5774-4e4a-8f05-720cbc283398" />
+  <Project Path="Network/Network.csproj" Id="9b47ab72-5774-4e4a-8f05-720cbc283398" />
 </Solution>

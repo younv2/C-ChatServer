@@ -42,7 +42,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ByteConverter.cs" />
-    <Compile Include="NetworkManager.cs" />
+    <Compile Include="NetworkSystem.cs" />
     <Compile Include="Packet.cs" />
     <Compile Include="Protocol.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
