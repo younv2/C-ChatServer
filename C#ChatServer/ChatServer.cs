@@ -1,13 +1,59 @@
 using Network;
 using System.Net;
 using System.Net.Sockets;
+public struct ChatRoom
+{
+    public int RoomIndex;
+    public string RoomName;
+    public string RoomPassword;
+    public List<string> RoomPlayerList;
+    public string RoomLeader;
+    public byte[] Serialize()
+    {
+        // 1. MemoryStream이라는 통을 준비함 (메모리 빌림)
+        using (MemoryStream ms = new MemoryStream())
+        {
+            using (BinaryWriter bw = new BinaryWriter(ms))
+            {
+                bw.Write(RoomIndex);
+                bw.Write(RoomName);
+                bw.Write(RoomPassword);
+                foreach (var data in RoomPlayerList)
+                    bw.Write(data);
+                bw.Write(RoomLeader);
 
+                return ms.ToArray();
+            }
+        } 
+    }
+    public static ChatRoom Deserialize(byte[] data)
+    {
+        ChatRoom room = new ChatRoom();
+        room.RoomPlayerList = new List<string>();
+
+        using (MemoryStream ms = new MemoryStream(data))
+        {
+            using (BinaryReader br = new BinaryReader(ms))
+            {
+                // 1. 순서대로 읽기 (Serialize와 순서가 같아야 함)
+                room.RoomIndex = br.ReadInt32();
+                room.RoomName = br.ReadString();
+                room.RoomPassword = br.ReadString();
+
+                // 만약 플레이어 리스트 정보도 포함되어 있다면 루프를 돌며 읽음
+                // (서버에서 생성 요청을 받을 때는 보통 리스트가 비어있겠죠?)
+            }
+        }
+        return room;
+    }
+}
 internal class ChatServer
 {
     private readonly int m_Port;
     //TCPListener안에 Socket이 이미 포함됨(리슨소켓)
     private TcpListener m_Listener;
     private List<Socket> m_ClientSockets = new();
+    private List<ChatRoom> chatRoomList = new();
     private bool m_IsRunning;
 
     public ChatServer(int _port)
