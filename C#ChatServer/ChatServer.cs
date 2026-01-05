@@ -1,59 +1,15 @@
 using Network;
 using System.Net;
 using System.Net.Sockets;
-public struct ChatRoom
-{
-    public int RoomIndex;
-    public string RoomName;
-    public string RoomPassword;
-    public List<string> RoomPlayerList;
-    public string RoomLeader;
-    public byte[] Serialize()
-    {
-        // 1. MemoryStream이라는 통을 준비함 (메모리 빌림)
-        using (MemoryStream ms = new MemoryStream())
-        {
-            using (BinaryWriter bw = new BinaryWriter(ms))
-            {
-                bw.Write(RoomIndex);
-                bw.Write(RoomName);
-                bw.Write(RoomPassword);
-                foreach (var data in RoomPlayerList)
-                    bw.Write(data);
-                bw.Write(RoomLeader);
 
-                return ms.ToArray();
-            }
-        } 
-    }
-    public static ChatRoom Deserialize(byte[] data)
-    {
-        ChatRoom room = new ChatRoom();
-        room.RoomPlayerList = new List<string>();
-
-        using (MemoryStream ms = new MemoryStream(data))
-        {
-            using (BinaryReader br = new BinaryReader(ms))
-            {
-                // 1. 순서대로 읽기 (Serialize와 순서가 같아야 함)
-                room.RoomIndex = br.ReadInt32();
-                room.RoomName = br.ReadString();
-                room.RoomPassword = br.ReadString();
-
-                // 만약 플레이어 리스트 정보도 포함되어 있다면 루프를 돌며 읽음
-                // (서버에서 생성 요청을 받을 때는 보통 리스트가 비어있겠죠?)
-            }
-        }
-        return room;
-    }
-}
-internal class ChatServer
+public class ChatServer
 {
     private readonly int m_Port;
     //TCPListener안에 Socket이 이미 포함됨(리슨소켓)
     private TcpListener m_Listener;
     private List<Socket> m_ClientSockets = new();
-    private List<ChatRoom> chatRoomList = new();
+    private List<RoomData> m_ChatRoomList = new();
+    private Dictionary<Socket,ClientSession> m_ClientSessions = new();
     private bool m_IsRunning;
 
     public ChatServer(int _port)
@@ -80,7 +36,8 @@ internal class ChatServer
             readList.Clear();
             
             readList.Add(m_Listener.Server);
-            readList.AddRange(m_ClientSockets);
+            foreach (var session in m_ClientSessions.Values)
+                readList.Add(session.Socket);
             Socket.Select(readList, null, null, 1000);
 
             foreach (var sock in readList)
@@ -91,23 +48,24 @@ internal class ChatServer
                 }
                 else
                 {
-                    HandleClientData(sock);
+                    HandleSessionData(m_ClientSessions[sock]);
                 }
             }
         }
     }
     private void AcceptNewClient()
     {
-        Socket client = m_Listener.AcceptSocket();
-        m_ClientSockets.Add(client);
+        Socket clientSocket = m_Listener.AcceptSocket();
+        m_ClientSessions.Add(clientSocket,new ClientSession(clientSocket));
+
         // client.RemoteEndPoint == 클라이언트의 IP주소와 포트번호
-        Console.WriteLine($"[접속] {client.RemoteEndPoint}");
+        Console.WriteLine($"[접속] {clientSocket.RemoteEndPoint}");
     }
-    private void HandleClientData(Socket client)
+    private void HandleSessionData(ClientSession _clientSession)
     {
-        while (client.Available >= 3)
+        while (_clientSession.Socket.Available >= 3)
         {
-            var result = ProcessPacket(client);
+            var result = ProcessPacket(_clientSession.Socket);
 
             if (result == PacketResult.Pending)
             {
@@ -115,30 +73,30 @@ internal class ChatServer
             }
             else if (result == PacketResult.Error)
             {
-                RemoveClient(client);
+                RemoveClient(_clientSession);
                 break;
             }
             
         }
     }
-    private PacketResult ProcessPacket(Socket client)
+    private PacketResult ProcessPacket(Socket _client)
     {
         try
         {
-            if (!NetworkSystem.TryPeekHeader(client, out var header)) 
+            if (!NetworkSystem.TryPeekHeader(_client, out var header)) 
                 return PacketResult.Pending;
-            if (client.Available < header.Size) 
+            if (_client.Available < header.Size) 
                 return PacketResult.Pending;
 
             switch (header.Protocol)
             {
                 case ChatProtocol.SetNickname:
-                    var nicknamePacket = NetworkSystem.ReadPacket<ReqChatDataPacket>(client, header.Size);
+                    var nicknamePacket = NetworkSystem.ReadPacket<ReqChatDataPacket>(_client, header.Size);
                     Console.WriteLine($"[로그] [{DateTime.Now}]{nicknamePacket.ChatData.Nickname}님이 닉네임을 설정함.");
                     break;
 
                 case ChatProtocol.Message:
-                    var msgPacket = NetworkSystem.ReadPacket<ReqChatDataPacket>(client, header.Size);
+                    var msgPacket = NetworkSystem.ReadPacket<ReqChatDataPacket>(_client, header.Size);
                     Console.WriteLine($"[채팅] [{DateTime.Now}]{msgPacket.ChatData.Nickname}: {msgPacket.ChatData.Msg}");
                     Broadcast(ByteConverter.StructureToBytes(msgPacket));
                     break;
@@ -154,23 +112,33 @@ internal class ChatServer
 
     private void Broadcast(byte[] data)
     {
-        for (int i = m_ClientSockets.Count - 1; i >= 0; i--)
+        List<Socket> disconnectedSockets = new List<Socket>();
+
+        foreach (var pair in m_ClientSessions)
         {
             try
             {
-                NetworkSystem.Send(m_ClientSockets[i], data);
+                NetworkSystem.Send(pair.Key, data);
             }
             catch
             {
-                RemoveClient(m_ClientSockets[i]);
+                disconnectedSockets.Add(pair.Key);
+            }
+        }
+
+        foreach (var socket in disconnectedSockets)
+        {
+            if (m_ClientSessions.TryGetValue(socket, out var session))
+            {
+                RemoveClient(session);
             }
         }
     }
 
-    private void RemoveClient(Socket socket)
+    private void RemoveClient(ClientSession _session)
     {
-        Console.WriteLine($"[퇴장] {socket.RemoteEndPoint}");
-        m_ClientSockets.Remove(socket);
-        socket.Close();
+        Console.WriteLine($"[퇴장] {_session.Socket.RemoteEndPoint}");
+        m_ClientSessions.Remove(_session.Socket);
+        _session.Socket.Close();
     }
 }

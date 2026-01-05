@@ -1,5 +1,21 @@
+using System;
+using System.Net.Sockets;
+
 namespace Network
 {
+    public class ClientSession
+    {
+        public Socket Socket;
+        public string ClientId;
+        public string Nickname; // 닉네임은 나중에 설정 가능
+
+        public ClientSession(Socket s)
+        {
+            Socket = s;
+            ClientId = Guid.NewGuid().ToString();
+            Nickname = "Guest"; // 초기 닉네임
+        }
+    }
     public enum ResultCode : byte
     {
         Success,
