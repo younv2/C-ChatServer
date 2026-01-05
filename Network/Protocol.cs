@@ -24,7 +24,10 @@ namespace Network
     public enum ChatProtocol : byte
     {
         SetNickname,
-        Message
+        Message,
+        CreateRoom,
+        EnterRoom,
+        ExitRoom
     }
     public enum PacketResult
     {

@@ -16,7 +16,6 @@ namespace Network
         public PacketHeader Header;
         public ChatData ChatData;
         public long TimeStamp;
-
     }
     //닉네임 세팅시 필요..일단은?
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -25,16 +24,26 @@ namespace Network
         public ChatProtocol Protocol;
         public ResultCode ResultCode;
     }
-    // 채팅 메세지를 서버로부터 응답받는 패킷 구조체
-    // 채팅을 친 닉네임 필요, 메세지 필요..
+    
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct ACKChatMessageDataPacket
+    public struct ReqCreateRoomPacket
     {
         public PacketHeader Header;
-        public ChatData ChatData;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 24)]
+        public string RoomName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 24)]
+        public string RoomPassword;
         public long TimeStamp;
     }
-
+    
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct ReqEnterRoomPacket
+    {
+        public PacketHeader Header;
+        public int RoomIndex;
+        public string RoomPassword;
+        public long TimeStamp;
+    }
 
     public struct ChatData
     {

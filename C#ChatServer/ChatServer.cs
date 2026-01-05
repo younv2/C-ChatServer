@@ -7,15 +7,15 @@ public class ChatServer
     private readonly int m_Port;
     //TCPListener안에 Socket이 이미 포함됨(리슨소켓)
     private TcpListener m_Listener;
-    private List<Socket> m_ClientSockets = new();
-    private List<RoomData> m_ChatRoomList = new();
     private Dictionary<Socket,ClientSession> m_ClientSessions = new();
+    private RoomManager m_RoomMgr;
     private bool m_IsRunning;
 
     public ChatServer(int _port)
     {
         m_Port = _port;
         m_Listener = new TcpListener(IPAddress.Any, m_Port);
+        m_RoomMgr = new RoomManager();
     }
 
     public void Start()
@@ -65,7 +65,7 @@ public class ChatServer
     {
         while (_clientSession.Socket.Available >= 3)
         {
-            var result = ProcessPacket(_clientSession.Socket);
+            var result = ProcessPacket(_clientSession);
 
             if (result == PacketResult.Pending)
             {
@@ -79,25 +79,36 @@ public class ChatServer
             
         }
     }
-    private PacketResult ProcessPacket(Socket _client)
+    private PacketResult ProcessPacket(ClientSession _clientSession)
     {
         try
         {
-            if (!NetworkSystem.TryPeekHeader(_client, out var header)) 
+            if (!NetworkSystem.TryPeekHeader(_clientSession.Socket, out var header)) 
                 return PacketResult.Pending;
-            if (_client.Available < header.Size) 
+            if (_clientSession.Socket.Available < header.Size) 
                 return PacketResult.Pending;
 
             switch (header.Protocol)
             {
+                case ChatProtocol.CreateRoom:
+                    var createRoomPacket = NetworkSystem.ReadPacket<ReqCreateRoomPacket>(_clientSession.Socket, header.Size);
+                    m_RoomMgr.CreateRoom(_clientSession,createRoomPacket.RoomName,createRoomPacket.RoomPassword);
+                    Console.WriteLine($"[로그] [{DateTime.Now}]방 생성 {createRoomPacket.RoomName}");
+                    break;
+                case ChatProtocol.EnterRoom:
+                    var enterRoomPacket = NetworkSystem.ReadPacket<ReqEnterRoomPacket>(_clientSession.Socket, header.Size);
+                    m_RoomMgr.TryEnterRoom(_clientSession, enterRoomPacket.RoomIndex, enterRoomPacket.RoomPassword);
+                    Console.WriteLine($"[로그] [{DateTime.Now}]방 입장 {_clientSession.Nickname}");
+                    break;
                 case ChatProtocol.SetNickname:
-                    var nicknamePacket = NetworkSystem.ReadPacket<ReqChatDataPacket>(_client, header.Size);
+                    var nicknamePacket = NetworkSystem.ReadPacket<ReqChatDataPacket>(_clientSession.Socket, header.Size);
                     Console.WriteLine($"[로그] [{DateTime.Now}]{nicknamePacket.ChatData.Nickname}님이 닉네임을 설정함.");
+                    _clientSession.Nickname = nicknamePacket.ChatData.Nickname;
                     break;
 
                 case ChatProtocol.Message:
-                    var msgPacket = NetworkSystem.ReadPacket<ReqChatDataPacket>(_client, header.Size);
-                    Console.WriteLine($"[채팅] [{DateTime.Now}]{msgPacket.ChatData.Nickname}: {msgPacket.ChatData.Msg}");
+                    var msgPacket = NetworkSystem.ReadPacket<ReqChatDataPacket>(_clientSession.Socket, header.Size);
+                    Console.WriteLine($"[채팅] [{DateTime.Now}]{_clientSession.Nickname}: {msgPacket.ChatData.Msg}");
                     Broadcast(ByteConverter.StructureToBytes(msgPacket));
                     break;
             }
