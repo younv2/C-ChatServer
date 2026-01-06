@@ -16,6 +16,15 @@ namespace Network
             Nickname = "Guest"; // 초기 닉네임
         }
     }
+    public class ChatSession : ClientSession
+    {
+        public int CurRoomIndex;
+        public ChatSession(Socket s) : base(s)
+        {
+            CurRoomIndex = -1;
+        }
+
+    }
     public enum ResultCode : byte
     {
         Success,
@@ -27,7 +36,8 @@ namespace Network
         Message,
         CreateRoom,
         EnterRoom,
-        ExitRoom
+        ExitRoom,
+        GetRoomList
     }
     public enum PacketResult
     {
